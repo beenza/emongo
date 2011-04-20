@@ -210,7 +210,11 @@ fold_more(_F, Value, _Collection, #response{cursor_id=0}, _Timeout) ->
 
 fold_more(F, Value, Collection, #response{pool_id=PoolId, cursor_id=CursorID}, Timeout) ->
     {Pid, Database, ReqId} = get_pid_pool(PoolId, 2),
-    Packet = emongo_packet:get_more(Database, Collection, ReqId, 0, CursorID),
+    Packet = case catch emongo_packet:get_more(Database, Collection, ReqId, 0, CursorID) of
+        {'EXIT', Err} -> error_logger:error_report({emongo_trouble, Database, Collection, ReqId, CursorID, Err}),
+            throw(emongo_trouble);
+        AnyOther -> AnyOther
+    end,
     Resp1 = emongo_server:send_recv(Pid, ReqId, Packet, Timeout),
 
     NewValue = fold_documents(F, Value, Resp1),
